@@ -7,6 +7,7 @@ use lambda_calculus::{
     *,
 };
 
+// TODO: rename me `in()`
 pub fn contains(x: Term, xs: Term) -> Term {
     let predicate = abs!(1, app!(eq(), x.clone(), Var(1)));
     let filtered = app!(filter(), predicate, xs.clone());

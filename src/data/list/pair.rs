@@ -2,7 +2,7 @@
 
 use crate::combinators::{I, Z};
 use crate::data::boolean::{fls, tru};
-use crate::data::num::church::{is_zero, pred, succ, zero};
+use crate::data::num::church::{eq, is_zero, leq, pred, succ, zero};
 use crate::data::pair::{fst, pair, snd};
 use crate::term::Term::*;
 use crate::term::{abs, app, Term};
@@ -771,6 +771,77 @@ pub fn replicate() -> Term {
                     app!(Var(4), app(pred(), Var(3)), Var(2))
                 )),
                 I()
+            )
+        ),
+    )
+}
+
+/// Applied to two pair-encoded lists, removes all elements of the 2nd argument from the 1st
+///
+/// TODO:
+/// MINUS ≡ Z (λzny.IS_ZERO n (λx.NIL) (λx.PAIR y (z (PRED n) y)) I)
+///           ≡ Z (λ λ λ IS_ZERO 2 (λ NIL) (λ PAIR 2 (4 (PRED 3) 2)) I)
+///
+/// # Example
+/// ```
+/// use lambda_calculus::data::list::pair::{minus, nil};
+/// use lambda_calculus::*;
+///
+/// let xs = vec![
+///     1.into_church(),
+///     2.into_church(),
+///     3.into_church(),
+///     4.into_church(),
+///     5.into_church(),
+/// ].into_pair_list();
+///
+/// let ys = vec![2.into_church(), 4.into_church()].into_pair_list();
+/// let expected = vec![1.into_church(), 3.into_church(), 5.into_church()].into_pair_list();
+///
+/// assert_eq!(
+///     beta(app!(minus(), xs.clone(), ys.clone()), NOR, 0),
+///     expected
+/// );
+///
+///  assert_eq!(
+///     beta(app!(minus(), ys.clone(), xs.clone()), NOR, 0),
+///     nil()
+/// );
+/// ```
+pub fn minus() -> Term {
+    app(
+        Z(),
+        abs!(
+            3, // z, xs, ys
+            app!(
+                is_nil(),
+                Var(2), // xs
+                nil(),
+                app!(
+                    is_nil(),
+                    Var(1), // ys
+                    Var(2), // return xs
+                    app!(
+                        leq(),
+                        app(head(), Var(2)),
+                        app(head(), Var(1)),
+                        app!(
+                            eq(),
+                            app(head(), Var(2)),
+                            app(head(), Var(1)),
+                            // if x == y => drop x and y
+                            app!(Var(3), app(tail(), Var(2)), app(tail(), Var(1))),
+                            // if x < y => keep x, recurse
+                            app!(
+                                cons(),
+                                app(head(), Var(2)),
+                                app!(Var(3), app(tail(), Var(2)), Var(1))
+                            )
+                        ),
+                        // if x > y => skip y, recurse
+                        app!(Var(3), Var(2), app(tail(), Var(1)))
+                    )
+                )
             )
         ),
     )
