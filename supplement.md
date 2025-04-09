@@ -1,5 +1,37 @@
 
 
+/// Applied to two pair-encoded lists, determines if 2nd argument exists within the first
+///
+/// contains xs x ≡ λxs λx.not (is_nil (filter (eq x) xs))
+///             
+/// # Example
+/// ```
+/// use lambda_calculus::data::boolean::{fls, not, tru};
+/// use lambda_calculus::data::list::pair::{filter, head, is_nil};
+/// use lambda_calculus::data::num::church::eq;
+/// use lambda_calculus::*;
+///
+/// let xs = vec![
+///     0.into_church(),
+///     2.into_church(),
+///     3.into_church(),
+/// ].into_pair_list();
+///
+/// assert_eq!(beta(
+///     app!(
+///         contains(),
+///         0.into_church(),
+///         xs.clone()
+///         )
+///     ), NOR, 0), tru());
+/// assert_eq!(beta( app!(contains(), 0.into_church(), xs.clone()) ), NOR, 0), fls());
+/// assert_eq!(
+///     beta( app!(contains(), 1.into_church(), vec![].into_pair_list()) ), NOR, 0),
+///     fls()
+/// );
+/// ```
+
+
 ## Combinators
 
 #### Identity 

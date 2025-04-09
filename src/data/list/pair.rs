@@ -1,8 +1,8 @@
 //! [Single-pair list](https://en.wikipedia.org/wiki/Church_encoding#One_pair_as_a_list_node)
 
 use crate::combinators::{I, Z};
-use crate::data::boolean::{fls, tru};
-use crate::data::num::church::{eq, is_zero, leq, pred, succ, zero};
+use crate::data::boolean::{fls, not, tru};
+use crate::data::num::church::{eq, is_zero, leq, mul, pred, succ, zero};
 use crate::data::pair::{fst, pair, snd};
 use crate::term::Term::*;
 use crate::term::{abs, app, Term};
@@ -778,10 +778,15 @@ pub fn replicate() -> Term {
 
 /// Applied to two pair-encoded lists, removes all elements of the 2nd argument from the 1st
 ///
-/// TODO:
-/// MINUS ≡ Z (λzny.IS_ZERO n (λx.NIL) (λx.PAIR y (z (PRED n) y)) I)
-///           ≡ Z (λ λ λ IS_ZERO 2 (λ NIL) (λ PAIR 2 (4 (PRED 3) 2)) I)
-///
+/// minus x:xs y:ys ≡ Z (λz λxs λys.
+///                     (is_nil xs) ys                              // if x:xs empty, return y:ys
+///                     (is_nil ys) xs                              // else if y:ys empty, return x:xs
+///                         leq x y                                 //      else if x ≤ y
+///                             (eq x y)  z xs ys                   //           if x == y, return minus xs ys                  
+///                                 (cons x (z xs ys))              //           else x < y, return x:(minus xs ys)
+///                                 z x:xs ys                     //      else x > y, return minus x:xs ys
+///                     )
+///             
 /// # Example
 /// ```
 /// use lambda_calculus::data::list::pair::{minus, nil};
@@ -844,6 +849,158 @@ pub fn minus() -> Term {
                 )
             )
         ),
+    )
+}
+
+/// contains xs x returns true if x is in xs
+///
+/// # Example
+/// ```
+/// use lambda_calculus::data::list::pair::{filter, is_nil, contains};
+/// use lambda_calculus::data::boolean::{fls, not, tru};
+/// use lambda_calculus::data::num::church::eq;
+/// use lambda_calculus::*;
+///
+/// let xs = vec![
+///     0.into_church(),
+///     2.into_church(),
+///     3.into_church(),
+/// ].into_pair_list();
+///
+///
+/// assert_eq!(
+///     beta(app!(contains(), xs.clone(), 0.into_church()), NOR, 0),
+///     tru()
+/// );
+/// assert_eq!(
+///     beta(app!(contains(), xs.clone(), 1.into_church()), NOR, 0),
+///     fls()
+/// );
+/// assert_eq!(
+///     beta(app!(contains(), vec![].into_pair_list(), 1.into_church()), NOR, 0),
+///     fls()
+/// );
+/// ```
+pub fn contains() -> Term {
+    abs!(
+        2,
+        app(
+            not(),
+            app(
+                is_nil(),
+                app!(
+                    filter(),
+                    app(eq(), Var(1)), // x
+                    Var(2)             // xs
+                )
+            ),
+        )
+    )
+}
+
+/// iterates the application of the first two argument (f x), n times (the 3rd argument)
+pub fn iterate(f: Term, x: Term) -> Term {
+    let recursive = app(
+        Z(),
+        abs!(3, {
+            // Cons the current value and recursively apply func to the next value
+            app!(cons(), Var(1), app!(Var(3), Var(2), app(Var(2), Var(1))))
+        }),
+    );
+
+    // Apply recursive function to func and x
+    app!(recursive, f, x)
+}
+
+/// generates an infinite list starting from the argument e.g. from() 3 = [3, 4, 5, ...]
+///
+/// # Example
+/// ```
+/// use lambda_calculus::data::list::pair::{cons, take, from};
+/// use lambda_calculus::data::num::church::succ;
+/// use lambda_calculus::combinators::Z;
+/// use lambda_calculus::*;
+///
+/// assert_eq!(
+///     beta(app!(take(), 2.into_church(), from(0.into_church())), NOR, 0),
+///     vec![0.into_church(), 1.into_church()].into_pair_list()
+/// );
+///
+/// assert_eq!(
+///     beta(app!(take(), 0.into_church(), from(0.into_church())), NOR, 0),
+///     vec![].into_pair_list()
+/// );
+///
+/// assert_eq!(
+///     beta(app!(take(), 3.into_church(), from(0.into_church())), NOR, 0),
+///     vec![0.into_church(), 1.into_church(), 2.into_church()].into_pair_list()
+/// );
+/// ```
+pub fn from(n: Term) -> Term {
+    iterate(succ(), n)
+}
+
+/// merge
+pub fn merge() -> Term {
+    app(
+        Z(),
+        abs!(3, {
+            // merge = λz xs ys ...
+            let recurse = Var(3);
+            let xs = Var(2);
+            let ys = Var(1);
+            app!(
+                is_nil(),
+                xs.clone(), // xs
+                ys.clone(), // ys
+                app!(
+                    is_nil(),
+                    ys.clone(), // ys
+                    xs.clone(), // xs
+                    app!(
+                        leq(),
+                        app(head(), xs.clone()),
+                        app(head(), ys.clone()),
+                        app!(
+                            cons(),
+                            app(head(), xs.clone()),
+                            app!(recurse.clone(), app(tail(), xs.clone()), ys.clone())
+                        ),
+                        app!(
+                            cons(),
+                            app(head(), ys.clone()),
+                            app!(recurse, xs.clone(), app(tail(), ys.clone()))
+                        )
+                    )
+                )
+            )
+        }),
+    )
+}
+
+/// # Example
+/// ```
+/// use lambda_calculus::data::list::pair::{take, merge, foldr, union};
+/// use lambda_calculus::*;
+///
+/// let a = vec![0.into_church(), 2.into_church(), 4.into_church()].into_pair_list();
+/// let b = vec![1.into_church(), 3.into_church()].into_pair_list();
+/// let input = vec![a.clone(), b.clone()].into_pair_list();
+///
+/// let expected = vec![
+///     0.into_church(),
+///     1.into_church(),
+///     2.into_church(),
+///     3.into_church(),
+///     4.into_church(),
+/// ].into_pair_list();
+///
+/// assert_eq!(beta(app!(union(), input.clone()), NOR, 0), expected);
+pub fn union() -> Term {
+    app!(
+        foldr(),
+        merge(),
+        nil() // initial accumulator
     )
 }
 

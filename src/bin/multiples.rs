@@ -44,14 +44,31 @@ pub fn multiples(x: Term) -> Term {
     )
 }
 
+pub fn multiples2() -> Term {
+    app!(
+        map(),
+        abs(app!(mul(), Var(2), Var(1))), // n * x
+        from(Var(1))                      // Generate the list starting from n
+    )
+}
+
 fn main() {
     assert_eq!(
         beta(
-            app!(take(), 2.into_church(), multiples(2.into_church())),
+            app!(take(), 3.into_church(), multiples(2.into_church())),
             NOR,
             0
         ),
-        vec![2.into_church(), 4.into_church(),].into_pair_list()
+        vec![2.into_church(), 4.into_church(), 6.into_church()].into_pair_list()
+    );
+
+    let finite_primes = vec![2.into_church(), 3.into_church(), 5.into_church()].into_pair_list();
+
+    let list_of_multiples = abs(app!(take(), 2.into_church(), multiples2(), 2.into_church()));
+
+    assert_eq!(
+        beta(list_of_multiples.clone(), NOR, 0),
+        vec![2.into_church(), 4.into_church()].into_pair_list()
     );
 
     // let mut ex = insert_sorted(1.into_church(), list());
